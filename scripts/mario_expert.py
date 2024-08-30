@@ -13,6 +13,7 @@ import random
 import cv2
 from mario_environment import MarioEnvironment
 from pyboy.utils import WindowEvent
+import numpy as np
 
 
 class MarioController(MarioEnvironment):
@@ -106,9 +107,25 @@ class MarioExpert:
         frame = self.environment.grab_frame()
         game_area = self.environment.game_area()
 
+        #Game elements
+        EMPTY = 0
+        MARIO = 1
+        PIPE = 14
+        GOOMBA = 15
+
         # Implement your code here to choose the best action
         # time.sleep(0.1)
-        return random.randint(0, len(self.environment.valid_actions) - 1)
+
+        mario_position = np.where(game_area == MARIO)
+        mario_x = mario_position[1][0]
+        mario_y = mario_position[0][0]
+        print(game_area)
+
+        
+
+        
+
+        return self.environment.valid_actions.index(WindowEvent.PRESS_ARROW_RIGHT)
 
     def step(self):
         """
