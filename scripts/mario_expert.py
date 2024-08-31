@@ -17,6 +17,11 @@ import numpy as np
 import math
 import time
 
+class ACTIONDURATION:
+    short = 1
+    medium = 5
+    long = 10
+    no_action = -1
 class GameElements:
          #Game elements
         EMPTY = 0
@@ -73,7 +78,7 @@ class MarioController(MarioEnvironment):
         self.valid_actions = valid_actions
         self.release_button = release_button
 
-    def run_action(self, action: int) -> None:
+    def run_action(self, action, duration : int) -> None:
         """
         This is a very basic example of how this function could be implemented
 
@@ -82,13 +87,24 @@ class MarioController(MarioEnvironment):
         You can change the action type to whatever you want or need just remember the base control of the game is pushing buttons
         """
 
-        # Simply toggles the buttons being on or off for a duration of act_freq
-        self.pyboy.send_input(self.valid_actions[action])
+        if not isinstance(action, list):
+            action = [action]
 
-        for _ in range(self.act_freq):
+        if duration == ACTIONDURATION.no_action:
+            for _ in range(self.act_freq):
+                self.pyboy.tick()
+            return
+        
+        for act in action:
+            # Simply toggles the buttons being on or off for a duration of act_freq
+            self.pyboy.send_input(self.valid_actions[act])
+        
+        for _ in range(duration):
             self.pyboy.tick()
+        
+        for act in action:
+            self.pyboy.send_input(self.release_button[act])
 
-        self.pyboy.send_input(self.release_button[action])
 
 
 class MarioExpert:
@@ -116,48 +132,60 @@ class MarioExpert:
         frame = self.environment.grab_frame()
         game_area = self.environment.game_area()
 
-        def get_element_position(game_area = game_area, element = GameElements.MARIO):
-            try:
-                element_pos = np.argwhere(game_area == element)
-                element_x_pos = element_pos[0][1]
-                element_y_pos = element_pos[0][0]
-                return element_x_pos, element_y_pos
-            except IndexError:
-                pass
-            return -math.inf, -math.inf
-        
-        mario_x, mario_y = get_element_position(game_area, GameElements.MARIO)
-        goomba_x, goomba_y = get_element_position(game_area, GameElements.GOOMBA)
-        pipe_x, pipe_y = get_element_position(game_area, GameElements.PIPE)
-        block_x, block_y = get_element_position(game_area, GameElements.BLOCK)
-        
-        if mario_x == -math.inf and mario_y == -math.inf:
-            mario_x = 0
-            mario_y = 0
-            # print(f"Mario not there")
-            return self.environment.release_button.index(WindowEvent.RELEASE_ARROW_RIGHT)
-        
-        if goomba_x != -math.inf and goomba_y != -math.inf:
-            if ((mario_x + 4) >= goomba_x) and (goomba_x > mario_x):
-                if abs(mario_x - goomba_x) <= 2:
-                    return self.environment.valid_actions.index(WindowEvent.PRESS_BUTTON_A)
-        
-        if pipe_x != -math.inf and pipe_y != -math.inf:
-            if ((mario_x + 4) >= pipe_x) and (pipe_x > mario_x):
-                if abs(mario_x - pipe_x) == 0:
-                    return self.environment.valid_actions.index(WindowEvent.PRESS_BUTTON_A)
-        
-        if block_x != -math.inf and block_y != -math.inf:
-            if ((mario_x + 4) >= block_x) and (block_x > mario_x):
-                if abs(mario_x - block_x) == 0:
-                    return self.environment.valid_actions.index(WindowEvent.PRESS_BUTTON_A)
+        #actions
+        move_forward_action = self.environment.valid_actions.index(WindowEvent.PRESS_ARROW_RIGHT)
+        jump_action = self.environment.valid_actions.index(WindowEvent.PRESS_BUTTON_A)
+        long_jump_action = [move_forward_action, jump_action]
 
+        def get_element_positions(game_area=game_area, element=GameElements.MARIO):
+            element_positions = np.argwhere(game_area == element)
+            if element_positions.size > 0:
+                return [(pos[1], pos[0]) for pos in element_positions]
+            return []
+        
+        # Get the position of the elements
+        mario_pos = get_element_positions(game_area, GameElements.MARIO)
+        mario_x, mario_y = mario_pos[0] if mario_pos else (0,0)
+        goomba_pos = get_element_positions(game_area, GameElements.GOOMBA)
+        pipe_pos = get_element_positions(game_area, GameElements.PIPE)
+        block_pos = get_element_positions(game_area, GameElements.BLOCK)
 
-        # Implement your code here to choose the best action
+        mario_pov = 2
+    
+        #goomba check
+        if np.size(goomba_pos) != 0:
+            for goomba_x, goomba_y in goomba_pos:
+                if ((mario_x + mario_pov) >= goomba_x) and (goomba_x > mario_x):
+                    if abs(mario_y - goomba_y) == 1:
+                        return long_jump_action, ACTIONDURATION.long
+                
+        #pipe check
+        if np.size(pipe_pos) != 0:
+            pipe_x, pipe_y = pipe_pos[0]
+            # Tall Pipe is in front of Mario with goomba on top wait for the goomba to move
+            if (pipe_x == 13 and pipe_y == 7):
+                return ACTIONDURATION.no_action, ACTIONDURATION.long
+
+            if ((mario_x + mario_pov) == pipe_x):
+                if abs(mario_y - pipe_y) == 0:
+                    return long_jump_action, ACTIONDURATION.long
+                
+            if ((mario_x + (mario_pov - 2)) == pipe_x):
+                if abs(mario_y - pipe_y) <= 2:
+                    return jump_action, ACTIONDURATION.long
+            
+        
+        #block check
+        if np.size(block_pos) != 0:
+            for block_x, block_y in block_pos:
+                if ((mario_x + mario_pov) >= block_x) and (block_x > mario_x):
+                    if abs(mario_y - block_y) == 1:
+                        return long_jump_action, ACTIONDURATION.long
+
         # time.sleep(0.1)
 
         # If no obstacle detected, move right
-        return self.environment.valid_actions.index(WindowEvent.PRESS_ARROW_RIGHT)
+        return move_forward_action, ACTIONDURATION.medium
 
     def step(self):
         """
@@ -167,10 +195,10 @@ class MarioExpert:
         """
 
         # Choose an action - button press or other...
-        action = self.choose_action()
+        action, duration = self.choose_action()
 
         # Run the action on the environment
-        self.environment.run_action(action)
+        self.environment.run_action(action, duration)
 
     def play(self):
         """
