@@ -22,6 +22,7 @@ class GameElements:
         EMPTY = 0
         MARIO = 1
         PIPE = 14
+        BLOCK = 10
         GOOMBA = 15
 
 class MarioController(MarioEnvironment):
@@ -128,6 +129,7 @@ class MarioExpert:
         mario_x, mario_y = get_element_position(game_area, GameElements.MARIO)
         goomba_x, goomba_y = get_element_position(game_area, GameElements.GOOMBA)
         pipe_x, pipe_y = get_element_position(game_area, GameElements.PIPE)
+        block_x, block_y = get_element_position(game_area, GameElements.BLOCK)
         
         if mario_x == -math.inf and mario_y == -math.inf:
             mario_x = 0
@@ -137,14 +139,17 @@ class MarioExpert:
         
         if goomba_x != -math.inf and goomba_y != -math.inf:
             if ((mario_x + 4) >= goomba_x) and (goomba_x > mario_x):
-                if abs(mario_x - goomba_x) == 2:
-                    # print("Goomba detected")
+                if abs(mario_x - goomba_x) <= 2:
                     return self.environment.valid_actions.index(WindowEvent.PRESS_BUTTON_A)
         
         if pipe_x != -math.inf and pipe_y != -math.inf:
             if ((mario_x + 4) >= pipe_x) and (pipe_x > mario_x):
-                if abs(mario_x - pipe_x) == 2:
-                    # print("Goomba detected")
+                if abs(mario_x - pipe_x) == 0:
+                    return self.environment.valid_actions.index(WindowEvent.PRESS_BUTTON_A)
+        
+        if block_x != -math.inf and block_y != -math.inf:
+            if ((mario_x + 4) >= block_x) and (block_x > mario_x):
+                if abs(mario_x - block_x) == 0:
                     return self.environment.valid_actions.index(WindowEvent.PRESS_BUTTON_A)
 
 
