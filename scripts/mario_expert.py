@@ -14,7 +14,15 @@ import cv2
 from mario_environment import MarioEnvironment
 from pyboy.utils import WindowEvent
 import numpy as np
+import math
+import time
 
+class GameElements:
+         #Game elements
+        EMPTY = 0
+        MARIO = 1
+        PIPE = 14
+        GOOMBA = 15
 
 class MarioController(MarioEnvironment):
     """
@@ -107,24 +115,43 @@ class MarioExpert:
         frame = self.environment.grab_frame()
         game_area = self.environment.game_area()
 
-        #Game elements
-        EMPTY = 0
-        MARIO = 1
-        PIPE = 14
-        GOOMBA = 15
+        def get_element_position(game_area = game_area, element = GameElements.MARIO):
+            try:
+                element_pos = np.argwhere(game_area == element)
+                element_x_pos = element_pos[0][1]
+                element_y_pos = element_pos[0][0]
+                return element_x_pos, element_y_pos
+            except IndexError:
+                pass
+            return -math.inf, -math.inf
+        
+        mario_x, mario_y = get_element_position(game_area, GameElements.MARIO)
+        goomba_x, goomba_y = get_element_position(game_area, GameElements.GOOMBA)
+        pipe_x, pipe_y = get_element_position(game_area, GameElements.PIPE)
+        
+        if mario_x == -math.inf and mario_y == -math.inf:
+            mario_x = 0
+            mario_y = 0
+            # print(f"Mario not there")
+            return self.environment.release_button.index(WindowEvent.RELEASE_ARROW_RIGHT)
+        
+        if goomba_x != -math.inf and goomba_y != -math.inf:
+            if ((mario_x + 4) >= goomba_x) and (goomba_x > mario_x):
+                if abs(mario_x - goomba_x) == 2:
+                    # print("Goomba detected")
+                    return self.environment.valid_actions.index(WindowEvent.PRESS_BUTTON_A)
+        
+        if pipe_x != -math.inf and pipe_y != -math.inf:
+            if ((mario_x + 4) >= pipe_x) and (pipe_x > mario_x):
+                if abs(mario_x - pipe_x) == 2:
+                    # print("Goomba detected")
+                    return self.environment.valid_actions.index(WindowEvent.PRESS_BUTTON_A)
+
 
         # Implement your code here to choose the best action
         # time.sleep(0.1)
 
-        mario_position = np.where(game_area == MARIO)
-        mario_x = mario_position[1][0]
-        mario_y = mario_position[0][0]
-        print(game_area)
-
-        
-
-        
-
+        # If no obstacle detected, move right
         return self.environment.valid_actions.index(WindowEvent.PRESS_ARROW_RIGHT)
 
     def step(self):
