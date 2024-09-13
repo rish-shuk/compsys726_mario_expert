@@ -19,16 +19,22 @@ import time
 
 class ACTIONDURATION:
     short = 1
-    medium = 5
-    long = 10
+    medium = 6
+    long = 18
     no_action = -1
 class GameElements:
          #Game elements
         EMPTY = 0
         MARIO = 1
+        MYSTERY = 13
         PIPE = 14
         BLOCK = 10
         GOOMBA = 15
+        KOOPA = 16
+        JUMPING_MOB = 18
+        FLYING_MOB = 19
+
+
 
 class MarioController(MarioEnvironment):
     """
@@ -136,6 +142,7 @@ class MarioExpert:
         move_forward_action = self.environment.valid_actions.index(WindowEvent.PRESS_ARROW_RIGHT)
         jump_action = self.environment.valid_actions.index(WindowEvent.PRESS_BUTTON_A)
         long_jump_action = [move_forward_action, jump_action]
+        move_backward_action = self.environment.valid_actions.index(WindowEvent.PRESS_ARROW_LEFT)
 
         def get_element_positions(game_area=game_area, element=GameElements.MARIO):
             element_positions = np.argwhere(game_area == element)
@@ -147,41 +154,70 @@ class MarioExpert:
         mario_pos = get_element_positions(game_area, GameElements.MARIO)
         mario_x, mario_y = mario_pos[0] if mario_pos else (0,0)
         goomba_pos = get_element_positions(game_area, GameElements.GOOMBA)
+        koopa_pos = get_element_positions(game_area, GameElements.KOOPA)
         pipe_pos = get_element_positions(game_area, GameElements.PIPE)
         block_pos = get_element_positions(game_area, GameElements.BLOCK)
-
+        jumping_mob_pos = get_element_positions(game_area, GameElements.JUMPING_MOB)
+        flying_mob_pos = get_element_positions(game_area, GameElements.FLYING_MOB)
+        mystery_pos = get_element_positions(game_area, GameElements.MYSTERY)
+        print(mystery_pos)
         mario_pov = 2
-    
+
         #goomba check
-        if np.size(goomba_pos) != 0:
+        if goomba_pos:
             for goomba_x, goomba_y in goomba_pos:
                 if ((mario_x + mario_pov) >= goomba_x) and (goomba_x > mario_x):
                     if abs(mario_y - goomba_y) == 1:
                         return long_jump_action, ACTIONDURATION.long
+                    
+        #koopa check
+        if koopa_pos:
+            for koopa_x, koopa_y in koopa_pos:
+                if ((mario_x + mario_pov) >= koopa_x) and (koopa_x > mario_x):
+                    if abs(mario_y - koopa_y) == 1:
+                        return long_jump_action, ACTIONDURATION.medium
+        
+        #jumping_mob check
+        if jumping_mob_pos:
+            for jumping_mob_x, jumping_mob_y in jumping_mob_pos:
+                if ((mario_x + (mario_pov + 2)) >= jumping_mob_x) and (jumping_mob_x > mario_x):
+                    if abs(mario_y - jumping_mob_y) == 2:
+                        return jump_action, ACTIONDURATION.medium
+        
+        if flying_mob_pos:
+            for flying_mob_x, flying_mob_y in flying_mob_pos:
+                if (mario_y - flying_mob_y) == 0:
+                    return move_backward_action, ACTIONDURATION.medium
+                elif ((mario_x + mario_pov + 2) >= flying_mob_x) and (flying_mob_x > mario_x):
+                    return long_jump_action, ACTIONDURATION.medium
                 
         #pipe check
-        if np.size(pipe_pos) != 0:
-            pipe_x, pipe_y = pipe_pos[0]
+        if pipe_pos:
+            pipe_x, pipe_y = pipe_pos[0]    
+
             # Tall Pipe is in front of Mario with goomba on top wait for the goomba to move
-            if (pipe_x == 13 and pipe_y == 7):
-                return ACTIONDURATION.no_action, ACTIONDURATION.long
+            if (pipe_x == 13 and pipe_y == 7) and (goomba_x > mario_x):
+                return ACTIONDURATION.no_action, ACTIONDURATION.medium
 
-            if ((mario_x + mario_pov) == pipe_x):
-                if abs(mario_y - pipe_y) == 0:
-                    return long_jump_action, ACTIONDURATION.long
-                
-            if ((mario_x + (mario_pov - 2)) == pipe_x):
+            if (mario_x + 4) == pipe_x:
                 if abs(mario_y - pipe_y) <= 2:
-                    return jump_action, ACTIONDURATION.long
-            
+                    return long_jump_action, ACTIONDURATION.medium      
+            elif (mario_x + 2) == pipe_x:
+                if abs(mario_y - pipe_y) <= 2:
+                    return long_jump_action, ACTIONDURATION.medium
         
-        #block check
-        if np.size(block_pos) != 0:
+         # if hole in front of mario, long jump
+        if ((mario_y + 2) < game_area.shape[0]) and ((mario_x + 2) < game_area.shape[1]):
+            if game_area[mario_y + 2][mario_x + 2] == 0 and game_area[15][mario_x + 2] == 0:  # Check for a hole two steps ahead
+                return long_jump_action, ACTIONDURATION.short
+            
+         #block check
+        if block_pos:
             for block_x, block_y in block_pos:
-                if ((mario_x + mario_pov) >= block_x) and (block_x > mario_x):
+                # Case 1: Block is directly in front of Mario (obstacle)
+                if (mario_x + mario_pov) == block_x:
                     if abs(mario_y - block_y) == 1:
-                        return long_jump_action, ACTIONDURATION.long
-
+                        return long_jump_action, ACTIONDURATION.short     
         # time.sleep(0.1)
 
         # If no obstacle detected, move right
